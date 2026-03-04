@@ -1,0 +1,19 @@
+services:
+  remnawave-node-go:
+    build: .
+    container_name: remnawave-node-go
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - xray-geodata:/usr/local/share/xray
+    networks:
+      - remnawave-node-go-network
+
+networks:
+  remnawave-node-go-network:
+    name: remnawave-node-go-network
+    driver: bridge
+
+volumes:
+  xray-geodata:
