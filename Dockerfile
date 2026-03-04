@@ -31,5 +31,7 @@ RUN chmod +x /entrypoint.sh
 ENV XRAY_VERSION=${XRAY_VERSION}
 ENV XRAY_LOCATION_ASSET=/usr/local/share/xray
 
+EXPOSE 2222
+
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["./remnawave-node-go"]
