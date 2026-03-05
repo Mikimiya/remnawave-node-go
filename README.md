@@ -1,7 +1,12 @@
 # remnawave-node-go
 
 [![Go Version](https://img.shields.io/github/go-mod/go-version/hteppl/remnawave-node-go)](https://go.dev/)
-[![Docker Hub](https://img.shields.io/docker/v/hteppl/remnawave-node-go?label=Docker%20Hub)](https://hub.docker.com/r/hteppl/remnawave-node-go)
+[![GitHub Release](https://img.shields.io/github/v/release/hteppl/remnawave-node-go)](https://github.com/hteppl/remnawave-node-go/releases)
+[![GitHub Actions](https://img.shields.io/github/actions/workflow/status/hteppl/remnawave-node-go/dockerhub-publish-dev.yaml?branch=dev&label=build)](https://github.com/hteppl/remnawave-node-go/actions)
+[![Docker Hub](https://img.shields.io/badge/Docker%20Hub-hteppl%2Fremnawave--node--go-blue)](https://hub.docker.com/r/hteppl/remnawave-node-go)
+[![Docker Pulls](https://img.shields.io/docker/pulls/hteppl/remnawave-node-go)](https://hub.docker.com/r/hteppl/remnawave-node-go)
+[![Docker Image Size](https://img.shields.io/docker/image-size/hteppl/remnawave-node-go/latest)](https://hub.docker.com/r/hteppl/remnawave-node-go)
+[![License](https://img.shields.io/github/license/hteppl/remnawave-node-go)](LICENSE)
 
 [English](README.md) | [Русский](README.ru.md)
 
