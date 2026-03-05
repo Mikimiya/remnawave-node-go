@@ -27,5 +27,9 @@ func (c *InternalController) RegisterRoutes(group *gin.RouterGroup) {
 
 func (c *InternalController) handleGetConfig(ctx *gin.Context) {
 	config := c.configManager.GetXrayConfig()
+	if config == nil {
+		ctx.JSON(http.StatusOK, gin.H{})
+		return
+	}
 	ctx.JSON(http.StatusOK, config)
 }

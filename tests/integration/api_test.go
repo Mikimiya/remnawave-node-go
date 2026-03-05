@@ -223,7 +223,7 @@ func TestHandlerAddUserWithoutXrayRunning(t *testing.T) {
 
 	w := makeAuthorizedRequest(t, server, creds, "POST", "/node/handler/add-user", addUserReq)
 
-	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+	assert.Equal(t, http.StatusOK, w.Code)
 
 	var response struct {
 		Response struct {
@@ -425,7 +425,7 @@ func TestValidationErrorAddUserMissingFields(t *testing.T) {
 
 	w := makeAuthorizedRequest(t, server, creds, "POST", "/node/handler/add-user", invalidReq)
 
-	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, http.StatusOK, w.Code)
 
 	var response struct {
 		Response struct {
@@ -437,7 +437,6 @@ func TestValidationErrorAddUserMissingFields(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, response.Response.Success)
 	assert.NotNil(t, response.Response.Error)
-	assert.Contains(t, *response.Response.Error, "invalid request body")
 }
 
 func TestValidationErrorInvalidJSON(t *testing.T) {
@@ -456,7 +455,7 @@ func TestValidationErrorInvalidJSON(t *testing.T) {
 	w := httptest.NewRecorder()
 	server.MainRouter().ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestXrayStartValidationError(t *testing.T) {
@@ -502,7 +501,11 @@ func TestHandlerGetInboundUsers(t *testing.T) {
 
 	var response struct {
 		Response struct {
-			Users []string `json:"users"`
+			Users []struct {
+				Username string `json:"username"`
+				Level    uint32 `json:"level"`
+				Protocol string `json:"protocol"`
+			} `json:"users"`
 		} `json:"response"`
 	}
 	err = json.Unmarshal(w.Body.Bytes(), &response)
@@ -524,12 +527,12 @@ func TestHandlerGetInboundUsersCount(t *testing.T) {
 
 	var response struct {
 		Response struct {
-			Count int `json:"count"`
+			Count int64 `json:"count"`
 		} `json:"response"`
 	}
 	err = json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
-	assert.Equal(t, 0, response.Response.Count)
+	assert.Equal(t, int64(0), response.Response.Count)
 }
 
 func TestStatsGetUserOnlineStatus(t *testing.T) {
@@ -726,7 +729,7 @@ func TestHandlerRemoveUserWithoutXrayRunning(t *testing.T) {
 
 	w := makeAuthorizedRequest(t, server, creds, "POST", "/node/handler/remove-user", removeReq)
 
-	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+	assert.Equal(t, http.StatusOK, w.Code)
 
 	var response struct {
 		Response struct {

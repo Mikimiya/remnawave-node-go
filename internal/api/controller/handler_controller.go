@@ -12,6 +12,28 @@ import (
 	"github.com/hteppl/remnawave-node-go/internal/xray"
 )
 
+var (
+	logFailedToParseAddUserRequest             = "Failed to parse add-user request"
+	logFailedToParseAddUsersRequest            = "Failed to parse add-users request"
+	logFailedToParseRemoveUserRequest          = "Failed to parse remove-user request"
+	logFailedToParseRemoveUsersRequest         = "Failed to parse remove-users request"
+	logFailedToParseGetInboundUsersRequest     = "Failed to parse get-inbound-users request"
+	logFailedToParseGetInboundUsersCountReq    = "Failed to parse get-inbound-users-count request"
+	logFailedToParseDropUsersConnectionsReq    = "Failed to parse drop-users-connections request"
+	logFailedToParseDropIPsRequest             = "Failed to parse drop-ips request"
+	logFailedToGetUserManager                  = "Failed to get user manager"
+	logFailedToBuildUser                       = "Failed to build user - unsupported type"
+	logFailedToAddUserToInbound                = "Failed to add user to inbound"
+	logFailedToAddUserToInboundDuringBulk      = "Failed to add user to inbound during bulk add"
+	logErrorRemovingUserFromInbounds           = "Error removing user from all inbounds (may not exist)"
+	logErrorRemovingUserFromInboundsDuringBulk = "Error removing user from inbounds during bulk add"
+	logErrorRemovingUserDuringBulkRemove       = "Error removing user from all inbounds during bulk remove"
+	logUserAddedSuccessfully                   = "User added successfully"
+	logBulkUsersAddedSuccessfully              = "Bulk users added successfully"
+	logUserRemovedSuccessfully                 = "User removed successfully"
+	logBulkUsersRemovedSuccessfully            = "Bulk users removed successfully"
+)
+
 type AddUserInboundData struct {
 	Tag        string `json:"tag" binding:"required"`
 	Username   string `json:"username" binding:"required"`
@@ -86,8 +108,14 @@ type GetInboundUsersRequest struct {
 	Tag string `json:"tag" binding:"required"`
 }
 
+type InboundUser struct {
+	Username string `json:"username"`
+	Level    uint32 `json:"level"`
+	Protocol string `json:"protocol"`
+}
+
 type GetInboundUsersResponseData struct {
-	Users []string `json:"users"`
+	Users []InboundUser `json:"users"`
 }
 
 type GetInboundUsersCountRequest struct {
@@ -95,7 +123,19 @@ type GetInboundUsersCountRequest struct {
 }
 
 type GetInboundUsersCountResponseData struct {
-	Count int `json:"count"`
+	Count int64 `json:"count"`
+}
+
+type DropUsersConnectionsRequest struct {
+	UserIDs []string `json:"userIds" binding:"required,min=1"`
+}
+
+type DropIPsRequest struct {
+	IPs []string `json:"ips" binding:"required,min=1"`
+}
+
+type GenericResponseData struct {
+	Success bool `json:"success"`
 }
 
 type HandlerController struct {
@@ -119,6 +159,8 @@ func (c *HandlerController) RegisterRoutes(group *gin.RouterGroup) {
 	group.POST("/remove-users", c.handleRemoveUsers)
 	group.POST("/get-inbound-users", c.handleGetInboundUsers)
 	group.POST("/get-inbound-users-count", c.handleGetInboundUsersCount)
+	group.POST("/drop-users-connections", c.handleDropUsersConnections)
+	group.POST("/drop-ips", c.handleDropIPs)
 }
 
 func (c *HandlerController) getUserManager() (*xray.UserManager, error) {
@@ -143,9 +185,9 @@ func (c *HandlerController) getUserManager() (*xray.UserManager, error) {
 func (c *HandlerController) handleAddUser(ctx *gin.Context) {
 	var req AddUserRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		c.logger.WithError(err).Error("Failed to parse add-user request")
-		errMsg := "invalid request body: " + err.Error()
-		ctx.JSON(http.StatusBadRequest, wrapResponse(AddUserResponseData{
+		c.logger.WithError(err).Error(logFailedToParseAddUserRequest)
+		errMsg := err.Error()
+		ctx.JSON(http.StatusOK, wrapResponse(AddUserResponseData{
 			Success: false,
 			Error:   &errMsg,
 		}))
@@ -154,7 +196,7 @@ func (c *HandlerController) handleAddUser(ctx *gin.Context) {
 
 	if len(req.Data) == 0 {
 		errMsg := "no inbound data provided"
-		ctx.JSON(http.StatusBadRequest, wrapResponse(AddUserResponseData{
+		ctx.JSON(http.StatusOK, wrapResponse(AddUserResponseData{
 			Success: false,
 			Error:   &errMsg,
 		}))
@@ -163,9 +205,9 @@ func (c *HandlerController) handleAddUser(ctx *gin.Context) {
 
 	userManager, err := c.getUserManager()
 	if err != nil {
-		c.logger.WithError(err).Error("Failed to get user manager")
-		errMsg := "xray core not available: " + err.Error()
-		ctx.JSON(http.StatusServiceUnavailable, wrapResponse(AddUserResponseData{
+		c.logger.WithError(err).Error(logFailedToGetUserManager)
+		errMsg := err.Error()
+		ctx.JSON(http.StatusOK, wrapResponse(AddUserResponseData{
 			Success: false,
 			Error:   &errMsg,
 		}))
@@ -178,7 +220,7 @@ func (c *HandlerController) handleAddUser(ctx *gin.Context) {
 	allTags := c.configManager.GetXtlsConfigInbounds()
 	if err := userManager.RemoveUserFromAllInbounds(bgCtx, allTags, username); err != nil {
 		c.logger.WithError(err).WithField("username", username).
-			Warn("Error removing user from all inbounds (may not exist)")
+			Warn(logErrorRemovingUserFromInbounds)
 	}
 
 	hashToRemove := req.HashData.PrevVlessUUID
@@ -215,7 +257,7 @@ func (c *HandlerController) handleAddUser(ctx *gin.Context) {
 		if user == nil {
 			c.logger.WithField("type", inboundData.Type).
 				WithField("tag", inboundData.Tag).
-				Error("Failed to build user - unsupported type")
+				Error(logFailedToBuildUser)
 			continue
 		}
 
@@ -223,9 +265,9 @@ func (c *HandlerController) handleAddUser(ctx *gin.Context) {
 			c.logger.WithError(err).
 				WithField("tag", inboundData.Tag).
 				WithField("username", inboundData.Username).
-				Error("Failed to add user to inbound")
-			errMsg := "failed to add user: " + err.Error()
-			ctx.JSON(http.StatusInternalServerError, wrapResponse(AddUserResponseData{
+				Error(logFailedToAddUserToInbound)
+			errMsg := err.Error()
+			ctx.JSON(http.StatusOK, wrapResponse(AddUserResponseData{
 				Success: false,
 				Error:   &errMsg,
 			}))
@@ -241,7 +283,7 @@ func (c *HandlerController) handleAddUser(ctx *gin.Context) {
 
 	c.logger.WithField("username", username).
 		WithField("inbounds", len(req.Data)).
-		Info("User added successfully")
+		Info(logUserAddedSuccessfully)
 
 	ctx.JSON(http.StatusOK, wrapResponse(AddUserResponseData{
 		Success: true,
@@ -252,9 +294,9 @@ func (c *HandlerController) handleAddUser(ctx *gin.Context) {
 func (c *HandlerController) handleAddUsers(ctx *gin.Context) {
 	var req AddUsersRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		c.logger.WithError(err).Error("Failed to parse add-users request")
-		errMsg := "invalid request body: " + err.Error()
-		ctx.JSON(http.StatusBadRequest, wrapResponse(AddUserResponseData{
+		c.logger.WithError(err).Error(logFailedToParseAddUsersRequest)
+		errMsg := err.Error()
+		ctx.JSON(http.StatusOK, wrapResponse(AddUserResponseData{
 			Success: false,
 			Error:   &errMsg,
 		}))
@@ -271,9 +313,9 @@ func (c *HandlerController) handleAddUsers(ctx *gin.Context) {
 
 	userManager, err := c.getUserManager()
 	if err != nil {
-		c.logger.WithError(err).Error("Failed to get user manager")
-		errMsg := "xray core not available: " + err.Error()
-		ctx.JSON(http.StatusServiceUnavailable, wrapResponse(AddUserResponseData{
+		c.logger.WithError(err).Error(logFailedToGetUserManager)
+		errMsg := err.Error()
+		ctx.JSON(http.StatusOK, wrapResponse(AddUserResponseData{
 			Success: false,
 			Error:   &errMsg,
 		}))
@@ -293,7 +335,7 @@ func (c *HandlerController) handleAddUsers(ctx *gin.Context) {
 
 		if err := userManager.RemoveUserFromAllInbounds(bgCtx, allTags, username); err != nil {
 			c.logger.WithError(err).WithField("username", username).
-				Warn("Error removing user from inbounds during bulk add")
+				Warn(logErrorRemovingUserFromInboundsDuringBulk)
 		}
 
 		if hashUUID != "" {
@@ -323,7 +365,7 @@ func (c *HandlerController) handleAddUsers(ctx *gin.Context) {
 			if user == nil {
 				c.logger.WithField("type", inboundData.Type).
 					WithField("tag", inboundData.Tag).
-					Error("Failed to build user - unsupported type")
+					Error(logFailedToBuildUser)
 				continue
 			}
 
@@ -331,9 +373,9 @@ func (c *HandlerController) handleAddUsers(ctx *gin.Context) {
 				c.logger.WithError(err).
 					WithField("tag", inboundData.Tag).
 					WithField("username", username).
-					Error("Failed to add user to inbound during bulk add")
-				errMsg := "failed to add user: " + err.Error()
-				ctx.JSON(http.StatusInternalServerError, wrapResponse(AddUserResponseData{
+					Error(logFailedToAddUserToInboundDuringBulk)
+				errMsg := err.Error()
+				ctx.JSON(http.StatusOK, wrapResponse(AddUserResponseData{
 					Success: false,
 					Error:   &errMsg,
 				}))
@@ -346,7 +388,7 @@ func (c *HandlerController) handleAddUsers(ctx *gin.Context) {
 		}
 	}
 
-	c.logger.WithField("count", len(req.Users)).Info("Bulk users added successfully")
+	c.logger.WithField("count", len(req.Users)).Info(logBulkUsersAddedSuccessfully)
 
 	ctx.JSON(http.StatusOK, wrapResponse(AddUserResponseData{
 		Success: true,
@@ -357,9 +399,9 @@ func (c *HandlerController) handleAddUsers(ctx *gin.Context) {
 func (c *HandlerController) handleRemoveUser(ctx *gin.Context) {
 	var req RemoveUserRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		c.logger.WithError(err).Error("Failed to parse remove-user request")
-		errMsg := "invalid request body: " + err.Error()
-		ctx.JSON(http.StatusBadRequest, wrapResponse(AddUserResponseData{
+		c.logger.WithError(err).Error(logFailedToParseRemoveUserRequest)
+		errMsg := err.Error()
+		ctx.JSON(http.StatusOK, wrapResponse(AddUserResponseData{
 			Success: false,
 			Error:   &errMsg,
 		}))
@@ -368,9 +410,9 @@ func (c *HandlerController) handleRemoveUser(ctx *gin.Context) {
 
 	userManager, err := c.getUserManager()
 	if err != nil {
-		c.logger.WithError(err).Error("Failed to get user manager")
-		errMsg := "xray core not available: " + err.Error()
-		ctx.JSON(http.StatusServiceUnavailable, wrapResponse(AddUserResponseData{
+		c.logger.WithError(err).Error(logFailedToGetUserManager)
+		errMsg := err.Error()
+		ctx.JSON(http.StatusOK, wrapResponse(AddUserResponseData{
 			Success: false,
 			Error:   &errMsg,
 		}))
@@ -382,7 +424,7 @@ func (c *HandlerController) handleRemoveUser(ctx *gin.Context) {
 	allTags := c.configManager.GetXtlsConfigInbounds()
 	if err := userManager.RemoveUserFromAllInbounds(bgCtx, allTags, req.Username); err != nil {
 		c.logger.WithError(err).WithField("username", req.Username).
-			Warn("Error removing user from all inbounds")
+			Warn(logErrorRemovingUserFromInbounds)
 	}
 
 	if req.HashData.VlessUUID != "" {
@@ -391,7 +433,7 @@ func (c *HandlerController) handleRemoveUser(ctx *gin.Context) {
 		}
 	}
 
-	c.logger.WithField("username", req.Username).Info("User removed successfully")
+	c.logger.WithField("username", req.Username).Info(logUserRemovedSuccessfully)
 
 	ctx.JSON(http.StatusOK, wrapResponse(AddUserResponseData{
 		Success: true,
@@ -402,9 +444,9 @@ func (c *HandlerController) handleRemoveUser(ctx *gin.Context) {
 func (c *HandlerController) handleRemoveUsers(ctx *gin.Context) {
 	var req RemoveUsersRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		c.logger.WithError(err).Error("Failed to parse remove-users request")
-		errMsg := "invalid request body: " + err.Error()
-		ctx.JSON(http.StatusBadRequest, wrapResponse(AddUserResponseData{
+		c.logger.WithError(err).Error(logFailedToParseRemoveUsersRequest)
+		errMsg := err.Error()
+		ctx.JSON(http.StatusOK, wrapResponse(AddUserResponseData{
 			Success: false,
 			Error:   &errMsg,
 		}))
@@ -421,9 +463,9 @@ func (c *HandlerController) handleRemoveUsers(ctx *gin.Context) {
 
 	userManager, err := c.getUserManager()
 	if err != nil {
-		c.logger.WithError(err).Error("Failed to get user manager")
-		errMsg := "xray core not available: " + err.Error()
-		ctx.JSON(http.StatusServiceUnavailable, wrapResponse(AddUserResponseData{
+		c.logger.WithError(err).Error(logFailedToGetUserManager)
+		errMsg := err.Error()
+		ctx.JSON(http.StatusOK, wrapResponse(AddUserResponseData{
 			Success: false,
 			Error:   &errMsg,
 		}))
@@ -436,7 +478,7 @@ func (c *HandlerController) handleRemoveUsers(ctx *gin.Context) {
 	for _, userEntry := range req.Users {
 		if err := userManager.RemoveUserFromAllInbounds(bgCtx, allTags, userEntry.UserID); err != nil {
 			c.logger.WithError(err).WithField("username", userEntry.UserID).
-				Warn("Error removing user from all inbounds during bulk remove")
+				Warn(logErrorRemovingUserDuringBulkRemove)
 		}
 
 		if userEntry.HashUUID != "" {
@@ -446,7 +488,7 @@ func (c *HandlerController) handleRemoveUsers(ctx *gin.Context) {
 		}
 	}
 
-	c.logger.WithField("count", len(req.Users)).Info("Bulk users removed successfully")
+	c.logger.WithField("count", len(req.Users)).Info(logBulkUsersRemovedSuccessfully)
 
 	ctx.JSON(http.StatusOK, wrapResponse(AddUserResponseData{
 		Success: true,
@@ -457,31 +499,101 @@ func (c *HandlerController) handleRemoveUsers(ctx *gin.Context) {
 func (c *HandlerController) handleGetInboundUsers(ctx *gin.Context) {
 	var req GetInboundUsersRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		c.logger.WithError(err).Error("Failed to parse get-inbound-users request")
-		errMsg := "invalid request body: " + err.Error()
-		ctx.JSON(http.StatusBadRequest, wrapResponse(struct {
-			Error *string `json:"error"`
-		}{Error: &errMsg}))
+		c.logger.WithError(err).Error(logFailedToParseGetInboundUsersRequest)
+		ctx.JSON(http.StatusOK, wrapResponse(GetInboundUsersResponseData{
+			Users: []InboundUser{},
+		}))
 		return
 	}
 
+	userManager, err := c.getUserManager()
+	if err != nil {
+		ctx.JSON(http.StatusOK, wrapResponse(GetInboundUsersResponseData{
+			Users: []InboundUser{},
+		}))
+		return
+	}
+
+	bgCtx := context.Background()
+	users, err := userManager.GetInboundUsers(bgCtx, req.Tag)
+	if err != nil {
+		ctx.JSON(http.StatusOK, wrapResponse(GetInboundUsersResponseData{
+			Users: []InboundUser{},
+		}))
+		return
+	}
+
+	inboundUsers := make([]InboundUser, 0, len(users))
+	for _, u := range users {
+		inboundUsers = append(inboundUsers, InboundUser{
+			Username: u.Email,
+			Level:    u.Level,
+		})
+	}
+
 	ctx.JSON(http.StatusOK, wrapResponse(GetInboundUsersResponseData{
-		Users: []string{},
+		Users: inboundUsers,
 	}))
 }
 
 func (c *HandlerController) handleGetInboundUsersCount(ctx *gin.Context) {
 	var req GetInboundUsersCountRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		c.logger.WithError(err).Error("Failed to parse get-inbound-users-count request")
-		errMsg := "invalid request body: " + err.Error()
-		ctx.JSON(http.StatusBadRequest, wrapResponse(struct {
-			Error *string `json:"error"`
-		}{Error: &errMsg}))
+		c.logger.WithError(err).Error(logFailedToParseGetInboundUsersCountReq)
+		ctx.JSON(http.StatusOK, wrapResponse(GetInboundUsersCountResponseData{
+			Count: 0,
+		}))
+		return
+	}
+
+	userManager, err := c.getUserManager()
+	if err != nil {
+		ctx.JSON(http.StatusOK, wrapResponse(GetInboundUsersCountResponseData{
+			Count: 0,
+		}))
+		return
+	}
+
+	bgCtx := context.Background()
+	count, err := userManager.GetInboundUsersCount(bgCtx, req.Tag)
+	if err != nil {
+		ctx.JSON(http.StatusOK, wrapResponse(GetInboundUsersCountResponseData{
+			Count: 0,
+		}))
 		return
 	}
 
 	ctx.JSON(http.StatusOK, wrapResponse(GetInboundUsersCountResponseData{
-		Count: 0,
+		Count: count,
+	}))
+}
+
+func (c *HandlerController) handleDropUsersConnections(ctx *gin.Context) {
+	var req DropUsersConnectionsRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		c.logger.WithError(err).Error(logFailedToParseDropUsersConnectionsReq)
+		ctx.JSON(http.StatusOK, wrapResponse(GenericResponseData{
+			Success: false,
+		}))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, wrapResponse(GenericResponseData{
+		Success: true,
+	}))
+}
+
+func (c *HandlerController) handleDropIPs(ctx *gin.Context) {
+	var req DropIPsRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		c.logger.WithError(err).Error(logFailedToParseDropIPsRequest)
+		ctx.JSON(http.StatusOK, wrapResponse(GenericResponseData{
+			Success: false,
+		}))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, wrapResponse(GenericResponseData{
+		Success: true,
 	}))
 }
