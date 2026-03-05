@@ -1,20 +1,15 @@
 package controller
 
 import (
-	"bufio"
 	"encoding/json"
-	"fmt"
 	"net/http"
-	"os"
-	"os/exec"
-	"runtime"
-	"strings"
 	"sync"
 	"sync/atomic"
 
 	"github.com/gin-gonic/gin"
 
 	"github.com/hteppl/remnawave-node-go/internal/logger"
+	"github.com/hteppl/remnawave-node-go/internal/utils"
 	"github.com/hteppl/remnawave-node-go/internal/version"
 	"github.com/hteppl/remnawave-node-go/internal/xray"
 )
@@ -242,77 +237,9 @@ func (c *XrayController) handleHealthcheck(ctx *gin.Context) {
 
 func getSystemInfo() SystemInfo {
 	return SystemInfo{
-		CpuCores:    runtime.NumCPU(),
-		CpuModel:    getCPUModel(),
-		MemoryTotal: getTotalMemory(),
-	}
-}
-
-func getCPUModel() string {
-	switch runtime.GOOS {
-	case "linux":
-		f, err := os.Open("/proc/cpuinfo")
-		if err != nil {
-			return "unknown"
-		}
-		defer f.Close()
-
-		scanner := bufio.NewScanner(f)
-		for scanner.Scan() {
-			line := scanner.Text()
-			if strings.HasPrefix(line, "model name") {
-				parts := strings.SplitN(line, ":", 2)
-				if len(parts) == 2 {
-					return strings.TrimSpace(parts[1])
-				}
-			}
-		}
-		return "unknown"
-	case "darwin":
-		out, err := exec.Command("sysctl", "-n", "machdep.cpu.brand_string").Output()
-		if err != nil {
-			return "unknown"
-		}
-		return strings.TrimSpace(string(out))
-	default:
-		return "unknown"
-	}
-}
-
-func getTotalMemory() string {
-	switch runtime.GOOS {
-	case "linux":
-		f, err := os.Open("/proc/meminfo")
-		if err != nil {
-			return "unknown"
-		}
-		defer f.Close()
-
-		scanner := bufio.NewScanner(f)
-		for scanner.Scan() {
-			line := scanner.Text()
-			if strings.HasPrefix(line, "MemTotal:") {
-				parts := strings.Fields(line)
-				if len(parts) >= 2 {
-					return parts[1] + " kB"
-				}
-			}
-		}
-		return "unknown"
-	case "darwin":
-		out, err := exec.Command("sysctl", "-n", "hw.memsize").Output()
-		if err != nil {
-			return "unknown"
-		}
-		memStr := strings.TrimSpace(string(out))
-		var memBytes uint64
-		if _, err := fmt.Sscanf(memStr, "%d", &memBytes); err != nil {
-			return "unknown"
-		}
-		memMB := memBytes / (1024 * 1024)
-		return fmt.Sprintf("%d MB", memMB)
-	default:
-		return "unknown"
+		CpuCores:    utils.GetCPUCores(),
+		CpuModel:    utils.GetCPUModel(),
+		MemoryTotal: utils.GetTotalMemory(),
 	}
 }
 
