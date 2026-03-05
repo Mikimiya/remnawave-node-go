@@ -35,6 +35,11 @@ type tlsErrorFilter struct {
 	logger *logger.Logger
 }
 
+// NewTLSErrorFilter creates a tlsErrorFilter for use as an io.Writer.
+func NewTLSErrorFilter(log *logger.Logger) *tlsErrorFilter {
+	return &tlsErrorFilter{logger: log}
+}
+
 func (f *tlsErrorFilter) Write(p []byte) (n int, err error) {
 	msg := strings.TrimSpace(string(p))
 	if strings.Contains(msg, "TLS handshake error") {
