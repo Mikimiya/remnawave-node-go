@@ -14,12 +14,21 @@ import (
 	"github.com/hteppl/remnawave-node-go/internal/xray"
 )
 
+var (
+	logFailedToParseInboundStatsRequest  = "Failed to parse get-inbound-stats request"
+	logFailedToParseOutboundStatsRequest = "Failed to parse get-outbound-stats request"
+)
+
 type ResetRequest struct {
 	Reset bool `json:"reset"`
 }
 
 type UsernameRequest struct {
 	Username string `json:"username" binding:"required"`
+}
+
+type UserIDRequest struct {
+	UserID string `json:"userId" binding:"required"`
 }
 
 type TagResetRequest struct {
@@ -36,6 +45,7 @@ type SystemStatsResponse struct {
 	Mallocs      uint64 `json:"mallocs"`
 	Frees        uint64 `json:"frees"`
 	LiveObjects  uint64 `json:"liveObjects"`
+	PauseTotalNs uint64 `json:"pauseTotalNs"`
 	Uptime       int64  `json:"uptime"`
 }
 
@@ -50,7 +60,11 @@ type UsersStatsResponse struct {
 }
 
 type UserOnlineResponse struct {
-	Online bool `json:"online"`
+	IsOnline bool `json:"isOnline"`
+}
+
+type UserIPListResponse struct {
+	IPs []string `json:"ips"`
 }
 
 type InboundStatsResponse struct {
@@ -108,6 +122,7 @@ func (c *StatsController) RegisterRoutes(group *gin.RouterGroup) {
 	group.GET("/get-system-stats", c.handleGetSystemStats)
 	group.POST("/get-users-stats", c.handleGetUsersStats)
 	group.POST("/get-user-online-status", c.handleGetUserOnlineStatus)
+	group.POST("/get-user-ip-list", c.handleGetUserIPList)
 	group.POST("/get-inbound-stats", c.handleGetInboundStats)
 	group.POST("/get-outbound-stats", c.handleGetOutboundStats)
 	group.POST("/get-all-inbounds-stats", c.handleGetAllInboundsStats)
@@ -252,6 +267,7 @@ func (c *StatsController) handleGetSystemStats(ctx *gin.Context) {
 		Mallocs:      memStats.Mallocs,
 		Frees:        memStats.Frees,
 		LiveObjects:  memStats.Mallocs - memStats.Frees,
+		PauseTotalNs: memStats.PauseTotalNs,
 		Uptime:       uptime,
 	}))
 }
@@ -287,9 +303,8 @@ func (c *StatsController) handleGetUsersStats(ctx *gin.Context) {
 func (c *StatsController) handleGetUserOnlineStatus(ctx *gin.Context) {
 	var req UsernameRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		c.logger.WithError(err).Error("Failed to parse get-user-online-status request")
-		ctx.JSON(http.StatusBadRequest, wrapResponse(UserOnlineResponse{
-			Online: false,
+		ctx.JSON(http.StatusOK, wrapResponse(UserOnlineResponse{
+			IsOnline: false,
 		}))
 		return
 	}
@@ -297,7 +312,7 @@ func (c *StatsController) handleGetUserOnlineStatus(ctx *gin.Context) {
 	stm := c.getStatsManager()
 	if stm == nil {
 		ctx.JSON(http.StatusOK, wrapResponse(UserOnlineResponse{
-			Online: false,
+			IsOnline: false,
 		}))
 		return
 	}
@@ -306,15 +321,51 @@ func (c *StatsController) handleGetUserOnlineStatus(ctx *gin.Context) {
 	value := c.getCounterValue(stm, counterName, false)
 
 	ctx.JSON(http.StatusOK, wrapResponse(UserOnlineResponse{
-		Online: value > 0,
+		IsOnline: value > 0,
+	}))
+}
+
+func (c *StatsController) handleGetUserIPList(ctx *gin.Context) {
+	var req UserIDRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusOK, wrapResponse(UserIPListResponse{
+			IPs: []string{},
+		}))
+		return
+	}
+
+	stm := c.getConcreteStatsManager()
+	if stm == nil {
+		ctx.JSON(http.StatusOK, wrapResponse(UserIPListResponse{
+			IPs: []string{},
+		}))
+		return
+	}
+
+	onlineMap := stm.GetOnlineMap("user>>>" + req.UserID + ">>>online")
+	if onlineMap == nil {
+		ctx.JSON(http.StatusOK, wrapResponse(UserIPListResponse{
+			IPs: []string{},
+		}))
+		return
+	}
+
+	ipTimeMap := onlineMap.IpTimeMap()
+	ips := make([]string, 0, len(ipTimeMap))
+	for ip := range ipTimeMap {
+		ips = append(ips, ip)
+	}
+
+	ctx.JSON(http.StatusOK, wrapResponse(UserIPListResponse{
+		IPs: ips,
 	}))
 }
 
 func (c *StatsController) handleGetInboundStats(ctx *gin.Context) {
 	var req TagResetRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		c.logger.WithError(err).Error("Failed to parse get-inbound-stats request")
-		ctx.JSON(http.StatusBadRequest, wrapResponse(InboundStatsResponse{
+		c.logger.WithError(err).Error(logFailedToParseInboundStatsRequest)
+		ctx.JSON(http.StatusOK, wrapResponse(InboundStatsResponse{
 			Inbound:  "",
 			Uplink:   0,
 			Downlink: 0,
@@ -348,8 +399,8 @@ func (c *StatsController) handleGetInboundStats(ctx *gin.Context) {
 func (c *StatsController) handleGetOutboundStats(ctx *gin.Context) {
 	var req TagResetRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		c.logger.WithError(err).Error("Failed to parse get-outbound-stats request")
-		ctx.JSON(http.StatusBadRequest, wrapResponse(OutboundStatsResponse{
+		c.logger.WithError(err).Error(logFailedToParseOutboundStatsRequest)
+		ctx.JSON(http.StatusOK, wrapResponse(OutboundStatsResponse{
 			Outbound: "",
 			Uplink:   0,
 			Downlink: 0,

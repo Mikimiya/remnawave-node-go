@@ -257,6 +257,7 @@ func TestStatsGetSystemStats(t *testing.T) {
 			Mallocs      uint64 `json:"mallocs"`
 			Frees        uint64 `json:"frees"`
 			LiveObjects  uint64 `json:"liveObjects"`
+			PauseTotalNs uint64 `json:"pauseTotalNs"`
 			Uptime       int64  `json:"uptime"`
 		} `json:"response"`
 	}
@@ -545,12 +546,35 @@ func TestStatsGetUserOnlineStatus(t *testing.T) {
 
 	var response struct {
 		Response struct {
-			Online bool `json:"online"`
+			IsOnline bool `json:"isOnline"`
 		} `json:"response"`
 	}
 	err = json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
-	assert.False(t, response.Response.Online)
+	assert.False(t, response.Response.IsOnline)
+}
+
+func TestStatsGetUserIPList(t *testing.T) {
+	creds, err := GenerateTestCredentials()
+	require.NoError(t, err)
+
+	server := setupTestServer(t, creds)
+
+	w := makeAuthorizedRequest(t, server, creds, "POST", "/node/stats/get-user-ip-list", map[string]string{
+		"userId": "testuser@example.com",
+	})
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response struct {
+		Response struct {
+			IPs []string `json:"ips"`
+		} `json:"response"`
+	}
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.NotNil(t, response.Response.IPs)
+	assert.Empty(t, response.Response.IPs)
 }
 
 func TestStatsGetInboundStats(t *testing.T) {
