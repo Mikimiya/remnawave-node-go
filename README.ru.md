@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://github.com/hteppl/remnawave-node-go/blob/master/.github/logo.webp?raw=true" alt="logo">
+</p>
+
 # remnawave-node-go
 
 [![Go Version](https://img.shields.io/github/go-mod/go-version/hteppl/remnawave-node-go)](https://go.dev/)
