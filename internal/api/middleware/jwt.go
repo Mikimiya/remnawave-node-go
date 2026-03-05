@@ -5,12 +5,12 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
-	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 
+	"github.com/hteppl/remnawave-node-go/internal/api/httputil"
 	"github.com/hteppl/remnawave-node-go/internal/logger"
 )
 
@@ -21,7 +21,7 @@ func JWTMiddleware(publicKeyPEM string, log *logger.Logger) gin.HandlerFunc {
 			if log != nil {
 				log.Error(fmt.Sprintf("JWT middleware disabled: invalid public key: %v", err))
 			}
-			destroySocket(c)
+			httputil.DestroySocket(c)
 		}
 	}
 
@@ -29,14 +29,14 @@ func JWTMiddleware(publicKeyPEM string, log *logger.Logger) gin.HandlerFunc {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
 			logAuthFailure(log, c, "missing Authorization header")
-			destroySocket(c)
+			httputil.DestroySocket(c)
 			return
 		}
 
 		parts := strings.SplitN(authHeader, " ", 2)
 		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
 			logAuthFailure(log, c, "invalid Authorization header format")
-			destroySocket(c)
+			httputil.DestroySocket(c)
 			return
 		}
 
@@ -51,13 +51,13 @@ func JWTMiddleware(publicKeyPEM string, log *logger.Logger) gin.HandlerFunc {
 
 		if err != nil {
 			logAuthFailure(log, c, fmt.Sprintf("token validation failed: %v", err))
-			destroySocket(c)
+			httputil.DestroySocket(c)
 			return
 		}
 
 		if !token.Valid {
 			logAuthFailure(log, c, "invalid token")
-			destroySocket(c)
+			httputil.DestroySocket(c)
 			return
 		}
 
@@ -99,21 +99,4 @@ func logAuthFailure(log *logger.Logger, c *gin.Context, reason string) {
 			WithField("reason", reason).
 			Error("Incorrect SECRET_KEY or JWT! Request dropped.")
 	}
-}
-
-func destroySocket(c *gin.Context) {
-	defer func() {
-		_ = recover()
-		c.Abort()
-	}()
-
-	hijacker, ok := c.Writer.(http.Hijacker)
-	if !ok {
-		return
-	}
-	conn, _, err := hijacker.Hijack()
-	if err != nil {
-		return
-	}
-	conn.Close()
 }

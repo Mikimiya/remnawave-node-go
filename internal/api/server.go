@@ -1,23 +1,17 @@
 package api
 
 import (
-	"bytes"
 	"crypto/tls"
-	"crypto/x509"
 	"fmt"
-	"io"
 	stdlog "log"
-	"net"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/klauspost/compress/zstd"
 
 	"github.com/hteppl/remnawave-node-go/internal/api/controller"
+	"github.com/hteppl/remnawave-node-go/internal/api/httputil"
 	"github.com/hteppl/remnawave-node-go/internal/api/middleware"
 	"github.com/hteppl/remnawave-node-go/internal/config"
-	apperrors "github.com/hteppl/remnawave-node-go/internal/errors"
 	"github.com/hteppl/remnawave-node-go/internal/logger"
 	"github.com/hteppl/remnawave-node-go/internal/xray"
 )
@@ -77,33 +71,10 @@ func NewServer(cfg *config.Config, log *logger.Logger, core *xray.Core, configMg
 	return s, nil
 }
 
-func (s *Server) buildTLSConfig() (*tls.Config, error) {
-	cert, err := tls.X509KeyPair(
-		[]byte(s.config.Payload.NodeCertPEM),
-		[]byte(s.config.Payload.NodeKeyPEM),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load server certificate: %w", err)
-	}
-
-	caCertPool := x509.NewCertPool()
-	if !caCertPool.AppendCertsFromPEM([]byte(s.config.Payload.CACertPEM)) {
-		return nil, fmt.Errorf("failed to parse CA certificate")
-	}
-
-	return &tls.Config{
-		Certificates: []tls.Certificate{cert},
-		ClientAuth:   tls.RequireAndVerifyClientCert,
-		ClientCAs:    caCertPool,
-		MinVersion:   tls.VersionTLS12,
-	}, nil
-}
-
 func (s *Server) setupMainRouter() *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Recovery())
-	router.Use(s.loggingMiddleware())
-	router.Use(s.zstdMiddleware())
+	router.Use(middleware.ZstdMiddleware())
 	router.Use(middleware.JWTMiddleware(s.config.Payload.JWTPublicKey, s.logger))
 
 	router.NoRoute(s.notFoundHandler())
@@ -126,8 +97,7 @@ func (s *Server) setupMainRouter() *gin.Engine {
 func (s *Server) setupInternalRouter() *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Recovery())
-	router.Use(s.loggingMiddleware())
-	router.Use(PortGuardMiddleware(s.config.InternalRestPort))
+	router.Use(middleware.PortGuardMiddleware(s.config.InternalRestPort))
 
 	router.NoRoute(func(c *gin.Context) {
 		c.String(404, "Cannot %s %s", c.Request.Method, c.Request.URL.Path)
@@ -154,38 +124,9 @@ func (s *Server) InternalRouter() *gin.Engine {
 	return s.internalRouter
 }
 
-func (s *Server) loggingMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.Next()
-	}
-}
-
-func (s *Server) zstdMiddleware() gin.HandlerFunc {
-	decoder, _ := zstd.NewReader(nil)
-
-	return func(c *gin.Context) {
-		if c.GetHeader("Content-Encoding") == "zstd" {
-			body, err := io.ReadAll(c.Request.Body)
-			if err != nil {
-				c.AbortWithStatus(400)
-				return
-			}
-			decompressed, err := decoder.DecodeAll(body, nil)
-			if err != nil {
-				c.AbortWithStatus(400)
-				return
-			}
-			c.Request.Body = io.NopCloser(bytes.NewReader(decompressed))
-			c.Request.Header.Del("Content-Encoding")
-			c.Request.ContentLength = int64(len(decompressed))
-		}
-		c.Next()
-	}
-}
-
 func (s *Server) notFoundHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		destroySocket(c)
+		httputil.DestroySocket(c)
 	}
 }
 
@@ -222,72 +163,4 @@ func (s *Server) Stop() error {
 		return err
 	}
 	return nil
-}
-
-func destroySocket(c *gin.Context) {
-	defer func() {
-		_ = recover()
-		c.Abort()
-	}()
-
-	hijacker, ok := c.Writer.(http.Hijacker)
-	if !ok {
-		return
-	}
-	conn, _, err := hijacker.Hijack()
-	if err != nil {
-		return
-	}
-	conn.Close()
-}
-
-func PortGuardMiddleware(expectedPort int) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		localAddr := c.Request.Context().Value(http.LocalAddrContextKey)
-		if localAddr == nil {
-			destroySocket(c)
-			return
-		}
-
-		tcpAddr, ok := localAddr.(*net.TCPAddr)
-		if !ok {
-			destroySocket(c)
-			return
-		}
-
-		if tcpAddr.Port != expectedPort || tcpAddr.IP.String() != "127.0.0.1" {
-			destroySocket(c)
-			return
-		}
-
-		c.Next()
-	}
-}
-
-type tlsErrorFilter struct {
-	logger *logger.Logger
-}
-
-func (f *tlsErrorFilter) Write(p []byte) (n int, err error) {
-	msg := strings.TrimSpace(string(p))
-	if strings.Contains(msg, "TLS handshake error") {
-		return len(p), nil
-	}
-	if f.logger != nil {
-		f.logger.Error(msg)
-	}
-	return len(p), nil
-}
-
-func ErrorHandler(code string, c *gin.Context) {
-	errDef, ok := apperrors.GetError(code)
-	if !ok {
-		errDef = apperrors.ERRORS[apperrors.CodeInternalServerError]
-	}
-
-	c.JSON(errDef.HTTPCode, NewErrorResponse(
-		c.Request.URL.Path,
-		errDef.Message,
-		errDef.Code,
-	))
 }
