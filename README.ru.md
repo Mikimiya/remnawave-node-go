@@ -1,33 +1,46 @@
 # remnawave-node-go
 
+[![Go Version](https://img.shields.io/github/go-mod/go-version/hteppl/remnawave-node-go)](https://go.dev/)
+[![GitHub Release](https://img.shields.io/github/v/release/hteppl/remnawave-node-go)](https://github.com/hteppl/remnawave-node-go/releases)
+[![GitHub Actions](https://img.shields.io/github/actions/workflow/status/hteppl/remnawave-node-go/dockerhub-publish-dev.yaml?branch=dev&label=build)](https://github.com/hteppl/remnawave-node-go/actions)
+[![Docker Hub](https://img.shields.io/badge/Docker%20Hub-hteppl%2Fremnawave--node--go-blue)](https://hub.docker.com/r/hteppl/remnawave-node-go)
+[![Docker Pulls](https://img.shields.io/docker/pulls/hteppl/remnawave-node-go)](https://hub.docker.com/r/hteppl/remnawave-node-go)
+[![Docker Image Size](https://img.shields.io/docker/image-size/hteppl/remnawave-node-go/latest)](https://hub.docker.com/r/hteppl/remnawave-node-go)
+[![License](https://img.shields.io/github/license/hteppl/remnawave-node-go)](LICENSE)
+
 [English](README.md) | [Русский](README.ru.md)
 
-Неофициальная community Go-реализация [Remnawave node](https://github.com/remnawave/node) для [xray-core](https://github.com/XTLS/Xray-core). Управляет жизненным циклом xray-core, пользователями, статистикой трафика и блокировкой IP через REST API.
+Неофициальная community Go-реализация [Remnawave node](https://github.com/remnawave/node)
+для [xray-core](https://github.com/XTLS/Xray-core). Управляет жизненным циклом xray-core, пользователями, статистикой
+трафика и блокировкой IP через REST API.
 
-> **⚠️ Внимание:** Это неофициальная community-реализация remnawave-node. Проект не связан с официальной командой Remnawave. Используйте на свой страх и риск.
+> **⚠️ Внимание:** Это неофициальная community-реализация remnawave-node. Проект не связан с официальной командой
+> Remnawave. Используйте на свой страх и риск.
 
 ## Сравнение с официальной нодой
 
-|                  | [remnawave/node](https://github.com/remnawave/node) | remnawave-node-go          |
-|------------------|------------------------------------------------------|----------------------------|
-| **Язык**         | TypeScript (NestJS)                                  | Go                         |
-| **Среда**        | Node.js / Bun                                        | Нативный бинарник          |
-| **RAM (idle)**   | ~109 MB                                              | ~70 MB                     |
-| **Docker-образ** | ~490 MB                                              | ~79 MB                     |
-| **xray-core**    | Бинарник + геоданные в образе                        | Скомпилирован как Go-библиотека* |
-| **Архитектура**  | Микросервис (NestJS + supervisord)                   | Один статический бинарник  |
-| **Статус**       | Официальный                                          | Неофициальный (community)  |
+|                  | [remnawave/node](https://github.com/remnawave/node) | remnawave-node-go                |
+|------------------|-----------------------------------------------------|----------------------------------|
+| **Язык**         | TypeScript (NestJS)                                 | Go                               |
+| **Среда**        | Node.js / Bun                                       | Нативный бинарник                |
+| **RAM (idle)**   | ~109 MB                                             | ~70 MB                           |
+| **Docker-образ** | ~490 MB                                             | ~79 MB                           |
+| **xray-core**    | Бинарник + геоданные в образе                       | Скомпилирован как Go-библиотека* |
+| **Архитектура**  | Микросервис (NestJS + supervisord)                  | Один статический бинарник        |
+| **Статус**       | Официальный                                         | Неофициальный (community)        |
 
-> *\* xray-core компилируется непосредственно в бинарник как Go-библиотека. Только геоданные (`geoip.dat`, `geosite.dat`) скачиваются при первом запуске и кэшируются в Docker volume для последующих запусков.*
+> *\* xray-core компилируется непосредственно в бинарник как Go-библиотека. Только
+геоданные (`geoip.dat`, `geosite.dat`) скачиваются при первом запуске и кэшируются в Docker volume для последующих
+запусков.*
 
 ## Конфигурация
 
-| Переменная           | Обязательная | По умолчанию | Описание                                                  |
-|----------------------|--------------|--------------|-----------------------------------------------------------|
+| Переменная           | Обязательная | По умолчанию | Описание                                                          |
+|----------------------|--------------|--------------|-------------------------------------------------------------------|
 | `SECRET_KEY`         | Да           | —            | Base64-закодированный payload, сгенерированный панелью Remnawave. |
-| `NODE_PORT`          | Нет          | `2222`       | Порт основного HTTPS-сервера (mTLS + JWT авторизация)     |
-| `INTERNAL_REST_PORT` | Нет          | `61001`      | Порт внутреннего HTTP-сервера (только localhost)           |
-| `LOG_LEVEL`          | Нет          | `info`       | Уровень логирования: `debug`, `info`, `warn`, `error`     |
+| `NODE_PORT`          | Нет          | `2222`       | Порт основного HTTPS-сервера (mTLS + JWT авторизация)             |
+| `INTERNAL_REST_PORT` | Нет          | `61001`      | Порт внутреннего HTTP-сервера (только localhost)                  |
+| `LOG_LEVEL`          | Нет          | `info`       | Уровень логирования: `debug`, `info`, `warn`, `error`             |
 
 ### Пример `.env`
 
@@ -68,17 +81,11 @@ services:
     image: hteppl/remnawave-node-go:latest
     container_name: remnawave-node-go
     restart: unless-stopped
+    network_mode: host
     env_file:
       - .env
     volumes:
       - xray-geodata:/usr/local/share/xray
-    networks:
-      - remnawave-node-go-network
-
-networks:
-  remnawave-node-go-network:
-    name: remnawave-node-go-network
-    driver: bridge
 
 volumes:
   xray-geodata:
@@ -98,6 +105,18 @@ docker logs -t remnawave-node-go
 ```
 
 Для более подробных логов установите `LOG_LEVEL=debug` в файле `.env` и перезапустите контейнер.
+
+### Внутренний API
+
+Текущую конфигурацию xray можно получить через внутренний REST API:
+
+```bash
+# Вывести конфигурацию в stdout
+curl -s http://127.0.0.1:61001/internal/get-config | jq
+
+# Сохранить конфигурацию в файл
+curl -s http://127.0.0.1:61001/internal/get-config | jq > config.json
+```
 
 ### Управление
 

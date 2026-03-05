@@ -3,92 +3,13 @@ package controller
 import (
 	"net/http"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	appstats "github.com/xtls/xray-core/app/stats"
-	"github.com/xtls/xray-core/features/stats"
 
-	"github.com/remnawave/node-go/internal/logger"
-	"github.com/remnawave/node-go/internal/xray"
+	"github.com/hteppl/remnawave-node-go/internal/logger"
+	"github.com/hteppl/remnawave-node-go/internal/xray"
 )
-
-type ResetRequest struct {
-	Reset bool `json:"reset"`
-}
-
-type UsernameRequest struct {
-	Username string `json:"username" binding:"required"`
-}
-
-type TagResetRequest struct {
-	Tag   string `json:"tag" binding:"required"`
-	Reset bool   `json:"reset"`
-}
-
-type SystemStatsResponse struct {
-	NumGoroutine int    `json:"numGoroutine"`
-	NumGC        uint32 `json:"numGC"`
-	Alloc        uint64 `json:"alloc"`
-	TotalAlloc   uint64 `json:"totalAlloc"`
-	Sys          uint64 `json:"sys"`
-	Mallocs      uint64 `json:"mallocs"`
-	Frees        uint64 `json:"frees"`
-	LiveObjects  uint64 `json:"liveObjects"`
-	Uptime       int64  `json:"uptime"`
-}
-
-type UserStats struct {
-	Username string `json:"username"`
-	Uplink   int64  `json:"uplink"`
-	Downlink int64  `json:"downlink"`
-}
-
-type UsersStatsResponse struct {
-	Users []UserStats `json:"users"`
-}
-
-type UserOnlineResponse struct {
-	Online bool `json:"online"`
-}
-
-type InboundStatsResponse struct {
-	Inbound  string `json:"inbound"`
-	Uplink   int64  `json:"uplink"`
-	Downlink int64  `json:"downlink"`
-}
-
-type OutboundStatsResponse struct {
-	Outbound string `json:"outbound"`
-	Uplink   int64  `json:"uplink"`
-	Downlink int64  `json:"downlink"`
-}
-
-type InboundEntry struct {
-	Inbound  string `json:"inbound"`
-	Uplink   int64  `json:"uplink"`
-	Downlink int64  `json:"downlink"`
-}
-
-type AllInboundsStatsResponse struct {
-	Inbounds []InboundEntry `json:"inbounds"`
-}
-
-type OutboundEntry struct {
-	Outbound string `json:"outbound"`
-	Uplink   int64  `json:"uplink"`
-	Downlink int64  `json:"downlink"`
-}
-
-type AllOutboundsStatsResponse struct {
-	Outbounds []OutboundEntry `json:"outbounds"`
-}
-
-type CombinedStatsResponse struct {
-	Inbounds  []InboundEntry  `json:"inbounds"`
-	Outbounds []OutboundEntry `json:"outbounds"`
-}
 
 type StatsController struct {
 	core      *xray.Core
@@ -108,133 +29,12 @@ func (c *StatsController) RegisterRoutes(group *gin.RouterGroup) {
 	group.GET("/get-system-stats", c.handleGetSystemStats)
 	group.POST("/get-users-stats", c.handleGetUsersStats)
 	group.POST("/get-user-online-status", c.handleGetUserOnlineStatus)
+	group.POST("/get-user-ip-list", c.handleGetUserIPList)
 	group.POST("/get-inbound-stats", c.handleGetInboundStats)
 	group.POST("/get-outbound-stats", c.handleGetOutboundStats)
 	group.POST("/get-all-inbounds-stats", c.handleGetAllInboundsStats)
 	group.POST("/get-all-outbounds-stats", c.handleGetAllOutboundsStats)
 	group.POST("/get-combined-stats", c.handleGetCombinedStats)
-}
-
-func (c *StatsController) getStatsManager() stats.Manager {
-	instance := c.core.Instance()
-	if instance == nil {
-		return nil
-	}
-
-	stmFeature := instance.GetFeature(stats.ManagerType())
-	if stmFeature == nil {
-		return nil
-	}
-
-	stm, ok := stmFeature.(stats.Manager)
-	if !ok {
-		return nil
-	}
-
-	return stm
-}
-
-func (c *StatsController) getConcreteStatsManager() *appstats.Manager {
-	instance := c.core.Instance()
-	if instance == nil {
-		return nil
-	}
-
-	stmFeature := instance.GetFeature(stats.ManagerType())
-	if stmFeature == nil {
-		return nil
-	}
-
-	stm, ok := stmFeature.(*appstats.Manager)
-	if !ok {
-		return nil
-	}
-
-	return stm
-}
-
-func (c *StatsController) getCounterValue(stm stats.Manager, name string, reset bool) int64 {
-	counter := stm.GetCounter(name)
-	if counter == nil {
-		return 0
-	}
-	value := counter.Value()
-	if reset {
-		counter.Set(0)
-	}
-	return value
-}
-
-func (c *StatsController) collectTrafficStats(stm *appstats.Manager, prefix string, reset bool) map[string]map[string]int64 {
-	result := make(map[string]map[string]int64)
-
-	stm.VisitCounters(func(name string, counter stats.Counter) bool {
-		if !strings.HasPrefix(name, prefix) {
-			return true
-		}
-
-		parts := strings.Split(name, ">>>")
-		if len(parts) < 4 {
-			return true
-		}
-
-		tag := parts[1]
-		if parts[2] != "traffic" {
-			return true
-		}
-		direction := parts[3]
-
-		if result[tag] == nil {
-			result[tag] = make(map[string]int64)
-		}
-
-		value := counter.Value()
-		if reset {
-			counter.Set(0)
-		}
-
-		result[tag][direction] = value
-		return true
-	})
-
-	return result
-}
-
-func (c *StatsController) collectUserStats(stm *appstats.Manager, reset bool) map[string]*UserStats {
-	userTraffic := make(map[string]*UserStats)
-
-	stm.VisitCounters(func(name string, counter stats.Counter) bool {
-		if !strings.HasPrefix(name, "user>>>") {
-			return true
-		}
-
-		parts := strings.Split(name, ">>>")
-		if len(parts) < 4 || parts[2] != "traffic" {
-			return true
-		}
-
-		username := parts[1]
-		direction := parts[3]
-
-		value := counter.Value()
-		if reset {
-			counter.Set(0)
-		}
-
-		if userTraffic[username] == nil {
-			userTraffic[username] = &UserStats{Username: username}
-		}
-
-		if direction == "uplink" {
-			userTraffic[username].Uplink = value
-		} else if direction == "downlink" {
-			userTraffic[username].Downlink = value
-		}
-
-		return true
-	})
-
-	return userTraffic
 }
 
 func (c *StatsController) handleGetSystemStats(ctx *gin.Context) {
@@ -252,6 +52,7 @@ func (c *StatsController) handleGetSystemStats(ctx *gin.Context) {
 		Mallocs:      memStats.Mallocs,
 		Frees:        memStats.Frees,
 		LiveObjects:  memStats.Mallocs - memStats.Frees,
+		PauseTotalNs: memStats.PauseTotalNs,
 		Uptime:       uptime,
 	}))
 }
@@ -274,7 +75,7 @@ func (c *StatsController) handleGetUsersStats(ctx *gin.Context) {
 
 	users := make([]UserStats, 0, len(userTraffic))
 	for _, userStats := range userTraffic {
-		if userStats.Uplink > 0 || userStats.Downlink > 0 {
+		if userStats.Uplink != 0 || userStats.Downlink != 0 {
 			users = append(users, *userStats)
 		}
 	}
@@ -287,9 +88,8 @@ func (c *StatsController) handleGetUsersStats(ctx *gin.Context) {
 func (c *StatsController) handleGetUserOnlineStatus(ctx *gin.Context) {
 	var req UsernameRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		c.logger.WithError(err).Error("Failed to parse get-user-online-status request")
-		ctx.JSON(http.StatusBadRequest, wrapResponse(UserOnlineResponse{
-			Online: false,
+		ctx.JSON(http.StatusOK, wrapResponse(UserOnlineResponse{
+			IsOnline: false,
 		}))
 		return
 	}
@@ -297,7 +97,7 @@ func (c *StatsController) handleGetUserOnlineStatus(ctx *gin.Context) {
 	stm := c.getStatsManager()
 	if stm == nil {
 		ctx.JSON(http.StatusOK, wrapResponse(UserOnlineResponse{
-			Online: false,
+			IsOnline: false,
 		}))
 		return
 	}
@@ -306,15 +106,51 @@ func (c *StatsController) handleGetUserOnlineStatus(ctx *gin.Context) {
 	value := c.getCounterValue(stm, counterName, false)
 
 	ctx.JSON(http.StatusOK, wrapResponse(UserOnlineResponse{
-		Online: value > 0,
+		IsOnline: value > 0,
+	}))
+}
+
+func (c *StatsController) handleGetUserIPList(ctx *gin.Context) {
+	var req UserIDRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusOK, wrapResponse(UserIPListResponse{
+			IPs: []string{},
+		}))
+		return
+	}
+
+	stm := c.getConcreteStatsManager()
+	if stm == nil {
+		ctx.JSON(http.StatusOK, wrapResponse(UserIPListResponse{
+			IPs: []string{},
+		}))
+		return
+	}
+
+	onlineMap := stm.GetOnlineMap("user>>>" + req.UserID + ">>>online")
+	if onlineMap == nil {
+		ctx.JSON(http.StatusOK, wrapResponse(UserIPListResponse{
+			IPs: []string{},
+		}))
+		return
+	}
+
+	ipTimeMap := onlineMap.IpTimeMap()
+	ips := make([]string, 0, len(ipTimeMap))
+	for ip := range ipTimeMap {
+		ips = append(ips, ip)
+	}
+
+	ctx.JSON(http.StatusOK, wrapResponse(UserIPListResponse{
+		IPs: ips,
 	}))
 }
 
 func (c *StatsController) handleGetInboundStats(ctx *gin.Context) {
 	var req TagResetRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		c.logger.WithError(err).Error("Failed to parse get-inbound-stats request")
-		ctx.JSON(http.StatusBadRequest, wrapResponse(InboundStatsResponse{
+		c.logger.WithError(err).Error(logFailedToParseInboundStatsRequest)
+		ctx.JSON(http.StatusOK, wrapResponse(InboundStatsResponse{
 			Inbound:  "",
 			Uplink:   0,
 			Downlink: 0,
@@ -348,8 +184,8 @@ func (c *StatsController) handleGetInboundStats(ctx *gin.Context) {
 func (c *StatsController) handleGetOutboundStats(ctx *gin.Context) {
 	var req TagResetRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		c.logger.WithError(err).Error("Failed to parse get-outbound-stats request")
-		ctx.JSON(http.StatusBadRequest, wrapResponse(OutboundStatsResponse{
+		c.logger.WithError(err).Error(logFailedToParseOutboundStatsRequest)
+		ctx.JSON(http.StatusOK, wrapResponse(OutboundStatsResponse{
 			Outbound: "",
 			Uplink:   0,
 			Downlink: 0,

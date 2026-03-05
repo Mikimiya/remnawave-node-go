@@ -1,10 +1,21 @@
 # remnawave-node-go
 
+[![Go Version](https://img.shields.io/github/go-mod/go-version/hteppl/remnawave-node-go)](https://go.dev/)
+[![GitHub Release](https://img.shields.io/github/v/release/hteppl/remnawave-node-go)](https://github.com/hteppl/remnawave-node-go/releases)
+[![GitHub Actions](https://img.shields.io/github/actions/workflow/status/hteppl/remnawave-node-go/dockerhub-publish-dev.yaml?branch=dev&label=build)](https://github.com/hteppl/remnawave-node-go/actions)
+[![Docker Hub](https://img.shields.io/badge/Docker%20Hub-hteppl%2Fremnawave--node--go-blue)](https://hub.docker.com/r/hteppl/remnawave-node-go)
+[![Docker Pulls](https://img.shields.io/docker/pulls/hteppl/remnawave-node-go)](https://hub.docker.com/r/hteppl/remnawave-node-go)
+[![Docker Image Size](https://img.shields.io/docker/image-size/hteppl/remnawave-node-go/latest)](https://hub.docker.com/r/hteppl/remnawave-node-go)
+[![License](https://img.shields.io/github/license/hteppl/remnawave-node-go)](LICENSE)
+
 [English](README.md) | [Русский](README.ru.md)
 
-An unofficial community Go implementation of the [Remnawave node](https://github.com/remnawave/node) for [xray-core](https://github.com/XTLS/Xray-core). Manages xray-core lifecycle, users, traffic statistics, and IP blocking through a REST API.
+An unofficial community Go implementation of the [Remnawave node](https://github.com/remnawave/node)
+for [xray-core](https://github.com/XTLS/Xray-core). Manages xray-core lifecycle, users, traffic statistics, and IP
+blocking through a REST API.
 
-> **⚠️ Warning:** This is an unofficial community realization of remnawave-node. It is not affiliated with the official Remnawave team. Use at your own risk.
+> **⚠️ Warning:** This is an unofficial community realization of remnawave-node. It is not affiliated with the official
+> Remnawave team. Use at your own risk.
 
 ## Comparison with the official node
 
@@ -18,7 +29,8 @@ An unofficial community Go implementation of the [Remnawave node](https://github
 | **Architecture** | Microservice (NestJS + supervisord)                 | Single static binary    |
 | **Status**       | Official                                            | Unofficial (community)  |
 
-> *\* xray-core is compiled directly into the binary as a Go library. Only geodata files (`geoip.dat`, `geosite.dat`) are downloaded on first start and cached in the Docker volume for subsequent starts.*
+> *\* xray-core is compiled directly into the binary as a Go library. Only geodata files (`geoip.dat`, `geosite.dat`)
+are downloaded on first start and cached in the Docker volume for subsequent starts.*
 
 ## Configuration
 
@@ -68,17 +80,11 @@ services:
     image: hteppl/remnawave-node-go:latest
     container_name: remnawave-node-go
     restart: unless-stopped
+    network_mode: host
     env_file:
       - .env
     volumes:
       - xray-geodata:/usr/local/share/xray
-    networks:
-      - remnawave-node-go-network
-
-networks:
-  remnawave-node-go-network:
-    name: remnawave-node-go-network
-    driver: bridge
 
 volumes:
   xray-geodata:
@@ -98,6 +104,18 @@ docker logs -t remnawave-node-go
 ```
 
 To get more detailed logs, set `LOG_LEVEL=debug` in your `.env` file and restart the container.
+
+### Internal API
+
+You can retrieve the current xray config from the internal REST API:
+
+```bash
+# Print config to stdout
+curl -s http://127.0.0.1:61001/internal/get-config | jq
+
+# Save config to file
+curl -s http://127.0.0.1:61001/internal/get-config | jq > config.json
+```
 
 ### Management
 

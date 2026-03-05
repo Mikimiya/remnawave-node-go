@@ -5,8 +5,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/remnawave/node-go/internal/logger"
-	"github.com/remnawave/node-go/internal/xray"
+	"github.com/hteppl/remnawave-node-go/internal/logger"
+	"github.com/hteppl/remnawave-node-go/internal/xray"
 )
 
 type InternalController struct {
@@ -27,5 +27,9 @@ func (c *InternalController) RegisterRoutes(group *gin.RouterGroup) {
 
 func (c *InternalController) handleGetConfig(ctx *gin.Context) {
 	config := c.configManager.GetXrayConfig()
+	if config == nil {
+		ctx.JSON(http.StatusOK, gin.H{})
+		return
+	}
 	ctx.JSON(http.StatusOK, config)
 }

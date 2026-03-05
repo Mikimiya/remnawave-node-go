@@ -9,7 +9,7 @@ import (
 	"github.com/xtls/xray-core/features/inbound"
 	"github.com/xtls/xray-core/proxy"
 
-	"github.com/remnawave/node-go/internal/logger"
+	"github.com/hteppl/remnawave-node-go/internal/logger"
 )
 
 type UserManager struct {
@@ -143,6 +143,30 @@ func (m *UserManager) RemoveUsers(ctx context.Context, tag string, emails []stri
 	}
 
 	return nil
+}
+
+func (m *UserManager) GetInboundUsers(ctx context.Context, tag string) ([]*protocol.MemoryUser, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	userManager, err := m.getProxyUserManager(ctx, tag)
+	if err != nil {
+		return nil, err
+	}
+
+	return userManager.GetUsers(ctx), nil
+}
+
+func (m *UserManager) GetInboundUsersCount(ctx context.Context, tag string) (int64, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	userManager, err := m.getProxyUserManager(ctx, tag)
+	if err != nil {
+		return 0, err
+	}
+
+	return userManager.GetUsersCount(ctx), nil
 }
 
 func (m *UserManager) RemoveUserFromAllInbounds(ctx context.Context, tags []string, email string) error {

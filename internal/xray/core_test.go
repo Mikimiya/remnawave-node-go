@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/remnawave/node-go/internal/logger"
+	"github.com/hteppl/remnawave-node-go/internal/logger"
 )
 
 func makeMinimalConfig() []byte {
@@ -25,10 +25,6 @@ func makeMinimalConfig() []byte {
 	}
 	data, _ := json.Marshal(cfg)
 	return data
-}
-
-func makeInvalidConfig() []byte {
-	return []byte(`{"invalid": true, "inbounds": "not-an-array"}`)
 }
 
 func makeInvalidJSON() []byte {
@@ -123,7 +119,7 @@ func TestCore_DoubleStart(t *testing.T) {
 
 	err := c.Start(makeMinimalConfig())
 	require.NoError(t, err)
-	defer c.Stop()
+	defer func() { _ = c.Stop() }()
 
 	err = c.Start(makeMinimalConfig())
 	require.NoError(t, err)

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/remnawave/node-go/internal/logger"
+	"github.com/hteppl/remnawave-node-go/internal/logger"
 )
 
 type InboundHash struct {
@@ -239,6 +239,12 @@ func (m *ConfigManager) RemoveUserFromInbound(inboundTag, userID string) {
 				Warn("Inbound has no users, clearing from inboundsHashMap")
 		}
 	}
+}
+
+func (m *ConfigManager) AddXtlsConfigInbound(inboundTag string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.xtlsConfigInbounds[inboundTag] = struct{}{}
 }
 
 func (m *ConfigManager) GetXtlsConfigInbounds() []string {

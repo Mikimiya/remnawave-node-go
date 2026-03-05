@@ -10,12 +10,12 @@ RUN go mod download
 
 COPY . .
 
-ARG VERSION=dev
+ARG VERSION=0.0.0-dev
 ARG BUILD_TIME=unknown
 ARG XRAY_VERSION=v26.2.6
 
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
-    -ldflags "-X main.Version=${VERSION} -X main.BuildTime=${BUILD_TIME} -w -s" \
+    -ldflags "-X github.com/hteppl/remnawave-node-go/internal/version.Version=${VERSION} -X github.com/hteppl/remnawave-node-go/internal/version.BuildTime=${BUILD_TIME} -w -s" \
     -o remnawave-node-go ./cmd/node-go
 
 FROM alpine:3.21

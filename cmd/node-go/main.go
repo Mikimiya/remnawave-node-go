@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
 	"os/signal"
@@ -9,28 +8,14 @@ import (
 
 	"github.com/joho/godotenv"
 
-	"github.com/remnawave/node-go/internal/api"
-	"github.com/remnawave/node-go/internal/config"
-	"github.com/remnawave/node-go/internal/logger"
-	"github.com/remnawave/node-go/internal/xray"
-)
-
-var (
-	Version   = "dev"
-	BuildTime = "unknown"
+	"github.com/hteppl/remnawave-node-go/internal/api"
+	"github.com/hteppl/remnawave-node-go/internal/config"
+	"github.com/hteppl/remnawave-node-go/internal/logger"
+	"github.com/hteppl/remnawave-node-go/internal/version"
+	"github.com/hteppl/remnawave-node-go/internal/xray"
 )
 
 func main() {
-	var showVersion bool
-
-	flag.BoolVar(&showVersion, "version", false, "Show version and exit")
-	flag.Parse()
-
-	if showVersion {
-		fmt.Printf("remnawave-node-go version %s (built %s)\n", Version, BuildTime)
-		os.Exit(0)
-	}
-
 	_ = godotenv.Load()
 
 	cfg, err := config.Load()
@@ -54,7 +39,7 @@ func main() {
 		Format: logger.FormatJSON,
 	})
 
-	log.Info(fmt.Sprintf("Starting remnawave-node-go version %s", Version))
+	log.Info(fmt.Sprintf("Starting remnawave-node-go version %s (%s)", version.Version, version.BuildTime))
 
 	core := xray.NewCore(log)
 	configMgr := xray.NewConfigManager(log)
@@ -70,8 +55,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	log.Info(fmt.Sprintf("Main HTTPS server listening on :%d", cfg.NodePort))
-	log.Info(fmt.Sprintf("Internal HTTP server listening on 127.0.0.1:%d", cfg.InternalRestPort))
+	log.Info(fmt.Sprintf("Server started successfully, listening on :%d", cfg.NodePort))
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
