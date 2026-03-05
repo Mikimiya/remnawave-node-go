@@ -55,8 +55,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	log.Info(fmt.Sprintf("Main HTTPS server listening on :%d", cfg.NodePort))
-	log.Info(fmt.Sprintf("Internal HTTP server listening on 127.0.0.1:%d", cfg.InternalRestPort))
+	log.Info(fmt.Sprintf("Server started successfully, listening on :%d", cfg.NodePort))
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
