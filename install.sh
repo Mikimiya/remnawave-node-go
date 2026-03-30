@@ -3,19 +3,19 @@ set -e
 
 # ============================================================
 #  Remnawave Node Go — Install Script (Binary)
-#  https://github.com/hteppl/remnawave-node-go
+#  https://github.com/Mikimiya/remnawave-node-go
 #
 #  Install:
-#    bash <(curl -fsSL https://raw.githubusercontent.com/hteppl/remnawave-node-go/master/install.sh)
+#    bash <(curl -fsSL https://raw.githubusercontent.com/Mikimiya/remnawave-node-go/master/install.sh)
 #
 #  Update:
-#    bash <(curl -fsSL https://raw.githubusercontent.com/hteppl/remnawave-node-go/master/install.sh) update
+#    bash <(curl -fsSL https://raw.githubusercontent.com/Mikimiya/remnawave-node-go/master/install.sh) update
 #
 #  Update geodata only:
-#    bash <(curl -fsSL https://raw.githubusercontent.com/hteppl/remnawave-node-go/master/install.sh) update-geo
+#    bash <(curl -fsSL https://raw.githubusercontent.com/Mikimiya/remnawave-node-go/master/install.sh) update-geo
 #
 #  Uninstall:
-#    bash <(curl -fsSL https://raw.githubusercontent.com/hteppl/remnawave-node-go/master/install.sh) uninstall
+#    bash <(curl -fsSL https://raw.githubusercontent.com/Mikimiya/remnawave-node-go/master/install.sh) uninstall
 # ============================================================
 
 # --- Colors --------------------------------------------------
@@ -28,7 +28,7 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 # --- Constants -----------------------------------------------
-REPO_OWNER="hteppl"
+REPO_OWNER="Mikimiya"
 REPO_NAME="remnawave-node-go"
 GITHUB_REPO="${REPO_OWNER}/${REPO_NAME}"
 GITHUB_RAW="https://raw.githubusercontent.com/${GITHUB_REPO}/master"

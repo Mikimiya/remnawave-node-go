@@ -54,6 +54,43 @@ INTERNAL_REST_PORT=61001
 LOG_LEVEL=info
 ```
 
+## Binary Install (Systemd)
+
+One-click install script — downloads prebuilt binary from GitHub Releases, sets up systemd service, and configures geodata automatically.
+
+```bash
+# Install
+bash <(curl -fsSL https://raw.githubusercontent.com/Mikimiya/remnawave-node-go/master/install.sh)
+
+# Update
+bash <(curl -fsSL https://raw.githubusercontent.com/Mikimiya/remnawave-node-go/master/install.sh) update
+
+# Update geodata only
+bash <(curl -fsSL https://raw.githubusercontent.com/Mikimiya/remnawave-node-go/master/install.sh) update-geo
+
+# Uninstall
+bash <(curl -fsSL https://raw.githubusercontent.com/Mikimiya/remnawave-node-go/master/install.sh) uninstall
+```
+
+After installation, manage the service with:
+
+```bash
+systemctl start   remnawave-node-go
+systemctl stop    remnawave-node-go
+systemctl restart remnawave-node-go
+systemctl status  remnawave-node-go
+
+# View logs
+journalctl -u remnawave-node-go -f
+```
+
+| File          | Path                                            |
+|---------------|-------------------------------------------------|
+| Binary        | `/usr/local/bin/remnawave-node-go`              |
+| Config        | `/etc/remnawave-node-go/.env`                   |
+| Geodata       | `/usr/local/share/xray/`                        |
+| Service       | `/etc/systemd/system/remnawave-node-go.service` |
+
 ## Docker
 
 ### Quick start
