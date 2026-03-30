@@ -1,0 +1,92 @@
+name: Build Release Binaries
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.goos }}-${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: linux
+            goarch: arm
+            goarm: "7"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Get version
+        id: version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        env:
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          GOARM: ${{ matrix.goarm }}
+        run: |
+          SUFFIX="${{ matrix.goos }}-${{ matrix.goarch }}"
+          if [ -n "${{ matrix.goarm }}" ]; then
+            SUFFIX="${SUFFIX}v${{ matrix.goarm }}"
+          fi
+          BINARY="remnawave-node-go-${SUFFIX}"
+
+          go build \
+            -ldflags "-X github.com/hteppl/remnawave-node-go/internal/version.Version=${{ steps.version.outputs.VERSION }}-go \
+                      -X github.com/hteppl/remnawave-node-go/internal/version.BuildTime=$(date -u '+%Y-%m-%dT%H:%M:%SZ') \
+                      -w -s" \
+            -o "${BINARY}" ./cmd/node-go
+
+          sha256sum "${BINARY}" > "${BINARY}.sha256"
+          echo "BINARY=${BINARY}" >> "$GITHUB_ENV"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.BINARY }}
+          path: |
+            ${{ env.BINARY }}
+            ${{ env.BINARY }}.sha256
+
+  release:
+    name: Publish Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -lhR artifacts/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            artifacts/remnawave-node-go-*
